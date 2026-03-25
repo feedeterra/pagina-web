@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
+import { motion, AnimatePresence, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'motion/react';
 import { Terminal, Activity, Database, Zap, ArrowRight, Target, MessageCircle, BarChart3, ShieldCheck, Check, TrendingUp, Users, Calendar } from 'lucide-react';
 
 // --- SPOTLIGHT CARD COMPONENT ---
@@ -63,6 +63,57 @@ const SpotlightCard: React.FC<SpotlightCardProps> = ({ children, className = "",
       {children}
     </motion.div>
   );
+};
+
+// --- ANIMATED COUNTER COMPONENT ---
+const AnimatedCounter = ({ value }: { value: string }) => {
+  const ref = useRef<HTMLSpanElement>(null);
+  const isInView = useInView(ref, { once: true, margin: "-50px" });
+  
+  // Extract number from string (e.g., "+$150.000 USD" -> 150000)
+  const hasNumber = /\d/.test(value);
+  const numericPart = value.match(/\d+(\.\d+)?/g)?.join('') || "0";
+  const target = parseFloat(numericPart.replace(/\.(?=[^.]*\.)/g, '')); // Handle potential multiple dots if they were thousand separators
+  
+  // Actually, let's keep it simple for our known patterns
+  const cleanNumericPart = value.replace(/[^0-9.]/g, '');
+  const targetValue = parseFloat(cleanNumericPart);
+
+  const count = useMotionValue(0);
+  const springValue = useSpring(count, {
+    stiffness: 40,
+    damping: 20,
+    restDelta: 0.001
+  });
+  
+  const displayValue = useTransform(springValue, (latest) => {
+    if (!hasNumber) return value;
+    
+    if (value.endsWith('x')) {
+      return `${latest.toFixed(1)}x`;
+    }
+
+    const rounded = Math.floor(latest);
+    const formatted = rounded.toLocaleString('de-DE'); // Using German locale for dot as thousand separator
+    
+    // Reconstruct the string based on common patterns
+    if (value.includes('$')) return `+$${formatted} USD`;
+    if (value.startsWith('+') && value.endsWith('%')) return `+${formatted}%`;
+    if (value.startsWith('+')) return `+${formatted}`;
+    if (value.endsWith('+')) return `${formatted}+`;
+    if (value.endsWith('%')) return `${rounded}%`;
+    if (value.includes('Protocolos')) return `Protocolos ${rounded}`;
+    
+    return formatted;
+  });
+
+  useEffect(() => {
+    if (isInView && hasNumber) {
+      count.set(targetValue);
+    }
+  }, [isInView, hasNumber, targetValue, count]);
+
+  return <motion.span ref={ref}>{displayValue}</motion.span>;
 };
 
 // --- HEADER COMPONENT ---
@@ -156,12 +207,14 @@ const ClientResultCard = ({ client, result, metric, desc, category, icon: Icon, 
         <Icon className="w-5 h-5 text-brand" />
       </div>
       <div className="text-[10px] font-mono text-green-500 bg-green-500/10 px-2 py-1 rounded-sm border border-green-500/20">
-        {metric}
+        <AnimatedCounter value={metric} />
       </div>
     </div>
     
     <div className="mb-6 relative z-10">
-      <div className="text-4xl md:text-5xl font-display font-bold text-white mb-1 tracking-tighter">{result}</div>
+      <div className="text-4xl md:text-5xl font-display font-bold text-white mb-1 tracking-tighter">
+        <AnimatedCounter value={result} />
+      </div>
       <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-[0.2em]">{desc}</div>
     </div>
 
@@ -499,16 +552,16 @@ const MetricsHUD = () => {
       icon: Target
     },
     {
-      title: "APLICACIÓN PROPIA",
-      value: "Medición CPA Real",
-      desc: "Trazabilidad de ventas vs presupuesto",
-      icon: BarChart3
+      title: "EFICIENCIA OPERATIVA",
+      value: "95%",
+      desc: "Automatización de primer contacto",
+      icon: Zap
     },
     {
-      title: "VANGUARDIA",
-      value: "Protocolos 2026",
-      desc: "IA y automatización profunda",
-      icon: Zap
+      title: "RETORNO PROMEDIO",
+      value: "4.5x",
+      desc: "ROAS en campañas B2B",
+      icon: BarChart3
     }
   ];
 
@@ -534,7 +587,9 @@ const MetricsHUD = () => {
               <div className="text-zinc-500 font-mono text-[10px] md:text-xs mb-4 md:mb-6 flex items-center gap-2 tracking-widest uppercase relative z-10">
                 <metric.icon className="w-3 h-3 md:w-4 md:h-4 text-brand" /> {metric.title}
               </div>
-              <div className="text-2xl md:text-3xl lg:text-4xl font-display font-bold text-white mb-2 md:mb-4 relative z-10">{metric.value}</div>
+              <div className="text-2xl md:text-3xl lg:text-4xl font-display font-bold text-white mb-2 md:mb-4 relative z-10">
+                <AnimatedCounter value={metric.value} />
+              </div>
               <div className="text-[10px] md:text-xs font-mono text-zinc-400 flex items-center gap-1 md:gap-2 relative z-10">
                 <span className="w-1 md:w-1.5 h-1 md:h-1.5 bg-brand rounded-full animate-pulse" /> {metric.desc}
               </div>
